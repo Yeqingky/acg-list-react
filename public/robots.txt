@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://acg.yppp.net/sitemap.xml
