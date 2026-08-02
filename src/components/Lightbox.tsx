@@ -18,8 +18,9 @@ const TOAST_DURATION = 3000
 const TOAST_ROW_HEIGHT = 56
 const TOAST_EXIT_DURATION = 300
 
-interface CopyToast {
+interface ToastMessage {
   id: number
+  text: string
   exiting: boolean
 }
 
@@ -45,7 +46,7 @@ async function copyTextToClipboard(text: string) {
 const ACTION_BUTTON_CLASS = 'pointer-events-auto size-12 rounded-full border-transparent bg-white/90 text-black focus-visible:border-transparent focus-visible:ring-0 hover:bg-white hover:text-black'
 
 export function Lightbox({ url, onClose }: LightboxProps) {
-  const [toasts, setToasts] = useState<CopyToast[]>([])
+  const [toasts, setToasts] = useState<ToastMessage[]>([])
   const nextToastId = useRef(0)
   const toastTimers = useRef(new Set<number>())
 
@@ -57,29 +58,33 @@ export function Lightbox({ url, onClose }: LightboxProps) {
     }
   }, [])
 
+  const addToast = useCallback((text: string) => {
+    const toastId = ++nextToastId.current
+    setToasts((current) => [...current, { id: toastId, text, exiting: false }])
+
+    const exitTimer = window.setTimeout(() => {
+      toastTimers.current.delete(exitTimer)
+      setToasts((current) => current.map((toast) => (
+        toast.id === toastId ? { ...toast, exiting: true } : toast
+      )))
+
+      const removeTimer = window.setTimeout(() => {
+        setToasts((current) => current.filter((toast) => toast.id !== toastId))
+        toastTimers.current.delete(removeTimer)
+      }, TOAST_EXIT_DURATION)
+      toastTimers.current.add(removeTimer)
+    }, TOAST_DURATION)
+    toastTimers.current.add(exitTimer)
+  }, [])
+
   const handleCopy = useCallback(async () => {
     try {
       await copyTextToClipboard(url)
-      const toastId = ++nextToastId.current
-      setToasts((current) => [...current, { id: toastId, exiting: false }])
-
-      const exitTimer = window.setTimeout(() => {
-        toastTimers.current.delete(exitTimer)
-        setToasts((current) => current.map((toast) => (
-          toast.id === toastId ? { ...toast, exiting: true } : toast
-        )))
-
-        const removeTimer = window.setTimeout(() => {
-          setToasts((current) => current.filter((toast) => toast.id !== toastId))
-          toastTimers.current.delete(removeTimer)
-        }, TOAST_EXIT_DURATION)
-        toastTimers.current.add(removeTimer)
-      }, TOAST_DURATION)
-      toastTimers.current.add(exitTimer)
+      addToast('复制成功 !')
     } catch {
       // ignore copy failure
     }
-  }, [url])
+  }, [addToast, url])
 
   const handleDownload = useCallback(async () => {
     try {
@@ -95,10 +100,12 @@ export function Lightbox({ url, onClose }: LightboxProps) {
       link.click()
       document.body.removeChild(link)
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+      addToast('下载成功 !')
     } catch {
       window.open(url, '_blank', 'noopener')
+      addToast('已打开原图 !')
     }
-  }, [url])
+  }, [addToast, url])
 
   return (
     <Dialog
@@ -179,7 +186,7 @@ export function Lightbox({ url, onClose }: LightboxProps) {
                   role="status"
                   className={`flex w-max items-center rounded-lg bg-green-500 px-4 py-2.5 text-sm font-medium text-white shadow-lg duration-300 ${toast.exiting ? 'animate-out fade-out-0 slide-out-to-right-8 zoom-out-95 ease-in' : 'animate-in fade-in-0 slide-in-from-right-6 ease-out'}`}
                 >
-                  复制成功 !
+                  {toast.text}
                 </div>
               </div>
             )
